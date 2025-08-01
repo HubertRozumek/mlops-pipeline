@@ -1,0 +1,54 @@
+import pandas as pd
+import numpy as np
+from typing import Tuple, Optional
+import logging
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+class DataLoader:
+    def __init__(self, data_path: str):
+        self.data_path = Path(data_path)
+    
+    def load_training_data(self) -> pd.DataFrame:
+        """Load training data from CSV file"""
+        try:
+            df = pd.read_csv(self.data_path / "train.csv")
+            logger.info(f"Loaded training data: {df.shape}")
+            return df
+        except FileNotFoundError:
+            logger.warning("Training data not found, generating synthetic data")
+            return self._generate_synthetic_data(1000)
+    
+    def load_validation_data(self) -> pd.DataFrame:
+        """Load validation data"""
+        try:
+            df = pd.read_csv(self.data_path / "validation.csv")
+            logger.info(f"Loaded validation data: {df.shape}")
+            return df
+        except FileNotFoundError:
+            logger.warning("Validation data not found, generating synthetic data")
+            return self._generate_synthetic_data(200)
+    
+    def _generate_synthetic_data(self, n_samples: int) -> pd.DataFrame:
+        """Generate synthetic customer churn data"""
+        np.random.seed(42)
+        
+        data = {
+            'age': np.random.randint(18, 80, n_samples),
+            'tenure': np.random.randint(1, 72, n_samples),
+            'monthly_charges': np.random.uniform(20, 100, n_samples),
+            'total_charges': np.random.uniform(100, 8000, n_samples),
+        }
+        
+        # Generate target with some correlation
+        churn_probability = (
+            0.1 + 
+            0.3 * (data['monthly_charges'] > 70) + 
+            0.2 * (data['tenure'] < 12) +
+            0.2 * (data['age'] > 65)
+        ) / 100
+        
+        data['churn'] = np.random.binomial(1, churn_probability, n_samples)
+        
+        return pd.DataFrame(data)
