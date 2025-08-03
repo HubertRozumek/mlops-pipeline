@@ -1,6 +1,8 @@
 import psutil
 import time
 import requests
+import pandas
+import sklearn
 import mlflow
 from typing import Dict, Any
 import logging
@@ -61,14 +63,15 @@ class HealthChecker:
         }
     
     async def _check_model_health(self) -> Dict[str, Any]:
+        from .main import model
         """Check if model is loaded and functional"""
         try:
             # This would check if global model is loaded
             # For now, we'll simulate the check
             return {
-                'status': 'healthy',
-                'model_loaded': True,  # This should check actual model state
-                'model_version': '1.0.0',
+                'status': 'healthy' if model else 'unhealthy',
+                'model_loaded': bool(model),
+                'model_version': getattr(model, 'version', 'none'),
                 'last_prediction_time': None
             }
         except Exception as e:
@@ -158,14 +161,12 @@ class HealthChecker:
         
         # Check if we can import key libraries
         try:
-            import pandas
             dependencies['services']['pandas'] = {'status': 'healthy', 'version': pandas.__version__}
         except ImportError as e:
             dependencies['services']['pandas'] = {'status': 'unhealthy', 'error': str(e)}
             dependencies['status'] = 'unhealthy'
         
         try:
-            import sklearn
             dependencies['services']['sklearn'] = {'status': 'healthy', 'version': sklearn.__version__}
         except ImportError as e:
             dependencies['services']['sklearn'] = {'status': 'unhealthy', 'error': str(e)}
