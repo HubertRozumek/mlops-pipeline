@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict, Any
 
 class PredictionRequest(BaseModel):
     age: int
@@ -12,9 +12,12 @@ class PredictionResponse(BaseModel):
     probability: float
     model_version: str
 
+class ComponentHealth(BaseModel):
+    status: str
+    details: Dict[str, Any] = {}
+    
 class HealthResponse(BaseModel):
     status: str
-    model_loaded: bool
-    mlflow_connection: bool
+    timestamp: str
     uptime_seconds: float
-    memory_usage_mb: float
+    checks: Dict[str, ComponentHealth]
