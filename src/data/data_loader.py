@@ -42,13 +42,14 @@ class DataLoader:
         }
         
         # Generate target with some correlation
-        churn_probability = (
-            0.1 + 
-            0.3 * (data['monthly_charges'] > 70) + 
-            0.2 * (data['tenure'] < 12) +
-            0.2 * (data['age'] > 65)
-        ) / 100
-        
-        data['churn'] = np.random.binomial(1, churn_probability, n_samples)
+        score = (
+            0.3 * (df['monthly_charges'] - 20) / 80 + 
+            0.3 * (1 - df['tenure'] / 72) +             
+            0.2 * (df['age'] > 65).astype(float)        
+        )
+
+        churn_prob = 0.1 + 0.8 * score.clip(0, 1)
+     
+        data['Churn'] = np.random.binomial(1, churn_prob)
         
         return pd.DataFrame(data)
