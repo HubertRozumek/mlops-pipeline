@@ -34,12 +34,12 @@ class DataLoader:
         """Generate synthetic customer churn data"""
         np.random.seed(42)
         
-        data = {
+        df = pd.DataFrame({
             'age': np.random.randint(18, 80, n_samples),
             'tenure': np.random.randint(1, 72, n_samples),
             'monthly_charges': np.random.uniform(20, 100, n_samples),
             'total_charges': np.random.uniform(100, 8000, n_samples),
-        }
+        })
         
         # Generate target with some correlation
         score = (
@@ -50,6 +50,6 @@ class DataLoader:
 
         churn_prob = 0.1 + 0.8 * score.clip(0, 1)
      
-        data['Churn'] = np.random.binomial(1, churn_prob)
+        df['Churn'] = np.random.binomial(1, churn_prob)
         
-        return pd.DataFrame(data)
+        return df
