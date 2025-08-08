@@ -8,31 +8,72 @@ import json
 logger = logging.getLogger(__name__)
 
 class DataValidator:
-    def __init__(self, schema_config: Dict[str, Any] = None):
+    def __init__(self, schema_config: Dict[str, Any] = None, is_synthetic: bool = True):
+        self.is_synthetic = is_synthetic
         self.schema_config = schema_config or self._default_schema()
         self.validation_results = []
         
     def _default_schema(self) -> Dict[str, Any]:
-        """Define default data schema"""
-        return {
-            'required_columns': ['age', 'tenure', 'monthly_charges', 'total_charges'],
-            'optional_columns': ['churn'],
-            'column_types': {
-                'age': 'int64',
-                'tenure': 'int64',
-                'monthly_charges': 'float64',
-                'total_charges': 'float64',
-                'churn': 'int64'
-            },
-            'ranges': {
-                'age': (18, 100),
-                'tenure': (0, 120),
-                'monthly_charges': (0, 200),
-                'total_charges': (0, 20000)
-            },
-            'missing_threshold': 0.1,  # Max 10% missing values
-            'outlier_threshold': 0.05   # Max 5% outliers
-        }
+        """Define default data schema based on is_synthetic flag"""
+        if self.is_synthetic:
+            return {
+                'required_columns': ['Age', 'tenure', 'MonthlyCharges', 'TotalCharges'],
+                'optional_columns': ['Churn'],
+                'column_types': {
+                    'Age': 'int64',
+                    'tenure': 'int64',
+                    'monthly_charges': 'float64',
+                    'total_charges': 'float64',
+                    'churn': 'bool'
+                },
+                'ranges': {
+                    'age': (18, 80),
+                    'tenure': (1, 72),
+                    'monthly_charges': (20, 100),
+                    'total_charges': (100, 8000)
+                },
+                'missing_threshold': 0.1,  # Max 10% missing values
+                'outlier_threshold': 0.05  # Max 5% outliers
+            }
+        else:
+            return {
+                'required_columns': ['tenure', 'MonthlyCharges', 'TotalCharges'],
+                'optional_columns': ['Churn', 'SeniorCitizen', 'Partner', 'Dependents', 'PhoneService', 
+                                   'PaperlessBilling', 'InternetService', 'OnlineSecurity', 
+                                   'OnlineBackup', 'DeviceProtection', 'TechSupport', 
+                                   'StreamingTV', 'StreamingMovies', 'Contract', 
+                                   'PaymentMethod', 'gender', 'MultipleLines'],
+                'column_types': {
+                    'tenure': 'int64',
+                    'MonthlyCharges': 'float64',
+                    'TotalCharges': 'float64',
+                    'SeniorCitizen': 'int64',
+                    'Churn': 'int64',
+                    'Partner': 'int64',
+                    'Dependents': 'int64',
+                    'PhoneService': 'int64',
+                    'PaperlessBilling': 'int64',
+                    'InternetService': 'int64',
+                    'OnlineSecurity': 'int64',
+                    'OnlineBackup': 'int64',
+                    'DeviceProtection': 'int64',
+                    'TechSupport': 'int64',
+                    'StreamingTV': 'int64',
+                    'StreamingMovies': 'int64',
+                    'Contract': 'int64',
+                    'PaymentMethod': 'int64',
+                    'gender': 'int64',
+                    'MultipleLines': 'int64'
+                },
+                'ranges': {
+                    'tenure': (0, 72),
+                    'MonthlyCharges': (0, 118.75),
+                    'TotalCharges': (0, 999.9),
+                    'SeniorCitizen': (0, 1)
+                },
+                'missing_threshold': 0.1,  # Max 10% missing values
+                'outlier_threshold': 0.05  # Max 5% outliers
+            }
     
     def validate_schema(self, df: pd.DataFrame) -> Dict[str, Any]:
         """Validate data schema"""
@@ -53,13 +94,19 @@ class DataValidator:
         for col, expected_type in self.schema_config['column_types'].items():
             if col in df.columns:
                 if not df[col].dtype.name.startswith(expected_type.split('_')[0]):
-                    validation_result['warnings'].append(
-                        f"Column {col} has type {df[col].dtype}, expected {expected_type}"
-                    )
+                    # Special handling for Telco's TotalCharges which may be object due to spaces
+                    if not (not self.is_synthetic and col == 'TotalCharges' and df[col].dtype == 'object'):
+                        validation_result['warnings'].append(
+                            f"Column {col} has type {df[col].dtype}, expected {expected_type}"
+                        )
         
-        # Check data ranges
+        # Check data ranges for numerical columns
         for col, (min_val, max_val) in self.schema_config['ranges'].items():
             if col in df.columns:
+                # Convert TotalCharges to numeric for Telco if needed
+                if not self.is_synthetic and col == 'TotalCharges':
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+                
                 out_of_range = ((df[col] < min_val) | (df[col] > max_val)).sum()
                 if out_of_range > 0:
                     validation_result['warnings'].append(
@@ -79,6 +126,10 @@ class DataValidator:
             'timestamp': datetime.now().isoformat()
         }
         
+        # Convert TotalCharges to numeric for Telco if needed
+        if not self.is_synthetic and 'TotalCharges' in df.columns:
+            df['TotalCharges'] = pd.to_numeric(df['TotalCharges'], errors='coerce')
+        
         # Check missing values
         missing_pct = df.isnull().sum() / len(df)
         validation_result['metrics']['missing_percentage'] = missing_pct.to_dict()
@@ -96,12 +147,12 @@ class DataValidator:
         if duplicate_count > 0:
             validation_result['warnings'].append(f"Found {duplicate_count} duplicate rows")
         
-        # Check for outliers
+        # Check for outliers in numerical columns
         numerical_cols = df.select_dtypes(include=[np.number]).columns
         outlier_info = {}
         
         for col in numerical_cols:
-            if col in df.columns:
+            if col in self.schema_config['ranges']:
                 Q1 = df[col].quantile(0.25)
                 Q3 = df[col].quantile(0.75)
                 IQR = Q3 - Q1
@@ -119,10 +170,9 @@ class DataValidator:
         
         validation_result['metrics']['outlier_percentage'] = outlier_info
         
-        # Check data distribution
+        # Check data distribution for numerical columns
         for col in numerical_cols:
-            if col in df.columns:
-                # Check for extreme skewness
+            if col in self.schema_config['ranges']:
                 skewness = df[col].skew()
                 if abs(skewness) > 2:
                     validation_result['warnings'].append(
@@ -142,6 +192,12 @@ class DataValidator:
             'timestamp': datetime.now().isoformat()
         }
         
+        # Convert TotalCharges to numeric for Telco if needed
+        if not self.is_synthetic and 'TotalCharges' in current_df.columns:
+            current_df['TotalCharges'] = pd.to_numeric(current_df['TotalCharges'], errors='coerce')
+        if not self.is_synthetic and 'TotalCharges' in reference_df.columns:
+            reference_df['TotalCharges'] = pd.to_numeric(reference_df['TotalCharges'], errors='coerce')
+        
         # Check column consistency
         ref_cols = set(reference_df.columns)
         curr_cols = set(current_df.columns)
@@ -156,7 +212,7 @@ class DataValidator:
         numerical_cols = reference_df.select_dtypes(include=[np.number]).columns
         
         for col in numerical_cols:
-            if col in current_df.columns:
+            if col in current_df.columns and col in self.schema_config['ranges']:
                 # Mean drift
                 ref_mean = reference_df[col].mean()
                 curr_mean = current_df[col].mean()
@@ -187,6 +243,10 @@ class DataValidator:
     
     def generate_report(self, df: pd.DataFrame, reference_df: pd.DataFrame = None) -> Dict[str, Any]:
         """Generate comprehensive data validation report"""
+        # Convert TotalCharges to numeric for Telco if needed
+        if not self.is_synthetic and 'TotalCharges' in df.columns:
+            df['TotalCharges'] = pd.to_numeric(df['TotalCharges'], errors='coerce')
+        
         report = {
             'timestamp': datetime.now().isoformat(),
             'data_shape': df.shape,
