@@ -35,17 +35,17 @@ class DataLoader:
         np.random.seed(42)
         
         df = pd.DataFrame({
-            'age': np.random.randint(18, 80, n_samples),
+            'Age': np.random.randint(18, 80, n_samples),
             'tenure': np.random.randint(1, 72, n_samples),
-            'monthly_charges': np.random.uniform(20, 100, n_samples),
-            'total_charges': np.random.uniform(100, 8000, n_samples),
+            'MonthlyCharges': np.random.uniform(20, 100, n_samples),
+            'TotalCharges': np.random.uniform(100, 8000, n_samples),
         })
         
         # Generate target with some correlation
         score = (
-            0.3 * (df['monthly_charges'] - 20) / 80 + 
+            0.3 * (df['MonthlyCharges'] - 20) / 80 + 
             0.3 * (1 - df['tenure'] / 72) +             
-            0.2 * (df['age'] > 65).astype(float)        
+            0.2 * (df['Age'] > 65).astype(float)        
         )
 
         churn_prob = 0.1 + 0.8 * score.clip(0, 1)
